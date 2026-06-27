@@ -2,6 +2,7 @@ package com.villxin.bandapi.shop.controller;
 
 import com.stripe.Stripe;
 import com.stripe.exception.SignatureVerificationException;
+import com.stripe.exception.StripeException;
 import com.stripe.model.Event;
 import com.stripe.model.checkout.Session;
 import com.stripe.net.Webhook;
@@ -11,6 +12,7 @@ import com.villxin.bandapi.shop.entity.OrderItem;
 import com.villxin.bandapi.shop.entity.Product;
 import com.villxin.bandapi.shop.repository.OrderRepository;
 import com.villxin.bandapi.shop.repository.ProductRepository;
+import jakarta.annotation.PostConstruct;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Min;
@@ -18,6 +20,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
@@ -31,28 +34,27 @@ public class OrderController {
 
     private final OrderRepository orderRepository;
     private final ProductRepository productRepository;
+    private final String webhookSecret;
+    private final String successUrl;
+    private final String cancelUrl;
 
-    @Value("${stripe.secret-key}")
-    private String stripeSecretKey;
-
-    @Value("${stripe.webhook-secret}")
-    private String webhookSecret;
-
-    @Value("${stripe.success-url}")
-    private String successUrl;
-
-    @Value("${stripe.cancel-url}")
-    private String cancelUrl;
-
-    public OrderController(OrderRepository orderRepository, ProductRepository productRepository) {
+    public OrderController(OrderRepository orderRepository,
+                           ProductRepository productRepository,
+                           @Value("${stripe.secret-key}") String stripeSecretKey,
+                           @Value("${stripe.webhook-secret}") String webhookSecret,
+                           @Value("${stripe.success-url}") String successUrl,
+                           @Value("${stripe.cancel-url}") String cancelUrl) {
         this.orderRepository = orderRepository;
         this.productRepository = productRepository;
+        this.webhookSecret = webhookSecret;
+        this.successUrl = successUrl;
+        this.cancelUrl = cancelUrl;
+        Stripe.apiKey = stripeSecretKey;
     }
 
     @PostMapping("/checkout")
-    public ResponseEntity<?> checkout(@Valid @RequestBody CheckoutRequest request) throws Exception {
-        Stripe.apiKey = stripeSecretKey;
-
+    @Transactional
+    public ResponseEntity<?> checkout(@Valid @RequestBody CheckoutRequest request) throws StripeException {
         List<SessionCreateParams.LineItem> lineItems = new ArrayList<>();
         List<OrderItem> orderItems = new ArrayList<>();
         BigDecimal total = BigDecimal.ZERO;
@@ -94,7 +96,6 @@ public class OrderController {
             item.setOrder(order);
             order.getItems().add(item);
         });
-        orderRepository.save(order);
 
         SessionCreateParams params = SessionCreateParams.builder()
                 .setMode(SessionCreateParams.Mode.PAYMENT)
@@ -102,11 +103,9 @@ public class OrderController {
                 .setSuccessUrl(successUrl + "?session_id={CHECKOUT_SESSION_ID}")
                 .setCancelUrl(cancelUrl)
                 .addAllLineItem(lineItems)
-                .putMetadata("orderId", order.getId().toString())
                 .build();
 
         Session session = Session.create(params);
-
         order.setStripeSessionId(session.getId());
         orderRepository.save(order);
 
@@ -114,6 +113,7 @@ public class OrderController {
     }
 
     @PostMapping("/webhook")
+    @Transactional
     public ResponseEntity<String> webhook(@RequestBody String payload,
                                           @RequestHeader("Stripe-Signature") String sigHeader) {
         Event event;
@@ -130,13 +130,9 @@ public class OrderController {
 
             orderRepository.findByStripeSessionId(session.getId()).ifPresent(order -> {
                 order.setStatus(Order.Status.PAID);
-                orderRepository.save(order);
-
-                // Decrement stock
                 order.getItems().forEach(item -> {
                     Product product = item.getProduct();
                     product.setStockQuantity(product.getStockQuantity() - item.getQuantity());
-                    productRepository.save(product);
                 });
             });
         }
