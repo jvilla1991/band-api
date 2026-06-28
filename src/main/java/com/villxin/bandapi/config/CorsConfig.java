@@ -6,13 +6,20 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
+import java.util.Arrays;
+
 @Configuration
 public class CorsConfig {
 
     private final String[] allowedOrigins;
 
-    public CorsConfig(@Value("${cors.allowed-origins:*}") String[] allowedOrigins) {
-        this.allowedOrigins = allowedOrigins;
+    public CorsConfig(@Value("${cors.allowed-origins:}") String[] allowedOrigins) {
+        // Fail closed: drop blank entries so an unset CORS_ORIGINS yields NO allowed origins
+        // (instead of the old "*" wildcard). The local profile supplies http://localhost:5173.
+        this.allowedOrigins = Arrays.stream(allowedOrigins)
+                .map(String::trim)
+                .filter(o -> !o.isEmpty())
+                .toArray(String[]::new);
     }
 
     @Bean
