@@ -29,6 +29,9 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        // App Runner polls this unauthenticated; must be public or the
+                        // health check fails and the service never reaches RUNNING.
+                        .requestMatchers("/actuator/health").permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/subscribe").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/posts/**").permitAll()
