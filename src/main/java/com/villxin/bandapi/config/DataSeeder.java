@@ -24,6 +24,12 @@ public class DataSeeder implements ApplicationRunner {
     @Value("${admin.password:}")
     private String adminPassword;
 
+    @Value("${community.official.email:}")
+    private String officialEmail;
+
+    @Value("${community.official.username:villxin}")
+    private String officialUsername;
+
     public DataSeeder(UserRepository userRepository, PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
@@ -31,6 +37,11 @@ public class DataSeeder implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
+        seedAdmin();
+        seedOfficialAccount();
+    }
+
+    private void seedAdmin() {
         if (adminEmail.isBlank() || adminPassword.isBlank()) {
             log.info("ADMIN_EMAIL or ADMIN_PASSWORD not set — skipping admin seed");
             return;
@@ -48,5 +59,34 @@ public class DataSeeder implements ApplicationRunner {
         userRepository.save(admin);
 
         log.info("Admin user seeded: {}", adminEmail);
+    }
+
+    /**
+     * Seeds the official villxin community account. The official flag is only
+     * ever set here (or manually in the DB) — never through the API. The
+     * account logs in via magic link like everyone else (no password).
+     */
+    private void seedOfficialAccount() {
+        if (officialEmail.isBlank()) {
+            log.info("OFFICIAL_EMAIL not set — skipping official account seed");
+            return;
+        }
+
+        String username = officialUsername.toLowerCase().trim();
+        if (userRepository.existsByUsername(username)) {
+            log.info("Official account already exists — skipping seed");
+            return;
+        }
+
+        User official = userRepository.findByEmail(officialEmail.toLowerCase().trim())
+                .orElseGet(User::new);
+        official.setEmail(officialEmail.toLowerCase().trim());
+        official.setUsername(username);
+        official.setDisplayName("villxin");
+        official.setOfficial(true);
+        official.setEmailVerified(true);
+        userRepository.save(official);
+
+        log.info("Official community account seeded: {}", username);
     }
 }
