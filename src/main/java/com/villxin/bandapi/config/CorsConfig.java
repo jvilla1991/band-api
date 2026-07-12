@@ -3,15 +3,17 @@ package com.villxin.bandapi.config;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.web.servlet.config.annotation.CorsRegistry;
-import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.Arrays;
+import java.util.List;
 
 @Configuration
 public class CorsConfig {
 
-    private final String[] allowedOrigins;
+    private final List<String> allowedOrigins;
 
     public CorsConfig(@Value("${cors.allowed-origins:}") String[] allowedOrigins) {
         // Fail closed: drop blank entries so an unset CORS_ORIGINS yields NO allowed origins
@@ -19,19 +21,21 @@ public class CorsConfig {
         this.allowedOrigins = Arrays.stream(allowedOrigins)
                 .map(String::trim)
                 .filter(o -> !o.isEmpty())
-                .toArray(String[]::new);
+                .toList();
     }
 
+    // Exposed as a CorsConfigurationSource bean so Spring Security's CorsFilter
+    // (enabled via http.cors() in SecurityConfig) answers preflights BEFORE the
+    // authorization rules run. MVC-level CORS alone is too late: the security
+    // chain rejects the anonymous OPTIONS preflight with 403 first.
     @Bean
-    public WebMvcConfigurer corsConfigurer() {
-        return new WebMvcConfigurer() {
-            @Override
-            public void addCorsMappings(CorsRegistry registry) {
-                registry.addMapping("/api/**")
-                        .allowedOrigins(allowedOrigins)
-                        .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
-                        .allowedHeaders("Content-Type", "Accept", "Authorization");
-            }
-        };
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration config = new CorsConfiguration();
+        config.setAllowedOrigins(allowedOrigins);
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        config.setAllowedHeaders(List.of("Content-Type", "Accept", "Authorization"));
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/api/**", config);
+        return source;
     }
 }

@@ -1,6 +1,7 @@
 package com.villxin.bandapi.config;
 
 import com.villxin.bandapi.security.JwtAuthFilter;
+import org.springframework.security.config.Customizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -26,9 +27,13 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         return http
+                .cors(Customizer.withDefaults())
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        // App Runner polls this unauthenticated; must be public or the
+                        // health check fails and the service never reaches RUNNING.
+                        .requestMatchers("/actuator/health").permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/subscribe").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/posts/**").permitAll()
@@ -38,6 +43,19 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/shop/checkout").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/shop/webhook").permitAll()
                         .requestMatchers("/api/shop/products/**").hasRole("ADMIN")
+                        // YourArea community — magic-link auth is public
+                        .requestMatchers(HttpMethod.POST,
+                                "/api/community/auth/signup",
+                                "/api/community/auth/login",
+                                "/api/community/auth/verify").permitAll()
+                        // Public reads: boards/threads, bulletins, profiles + walls.
+                        // Everything else under /api/community (writes, DMs, /auth/me)
+                        // falls through to authenticated().
+                        .requestMatchers(HttpMethod.GET,
+                                "/api/community/boards/**",
+                                "/api/community/threads/**",
+                                "/api/community/bulletins",
+                                "/api/community/profiles/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)

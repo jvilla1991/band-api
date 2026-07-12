@@ -23,7 +23,9 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         return userRepository.findByEmail(email)
                 .map(user -> new org.springframework.security.core.userdetails.User(
                         user.getEmail(),
-                        user.getPassword(),
+                        // magic-link members have no password; "" can never match a BCrypt hash,
+                        // so password login always fails for them (they log in via magic link)
+                        user.getPassword() != null ? user.getPassword() : "",
                         List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole()))
                 ))
                 .orElseThrow(() -> new UsernameNotFoundException("User not found: " + email));
