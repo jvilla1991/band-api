@@ -23,6 +23,12 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(Map.of("errors", fieldErrors));
     }
 
+    @ExceptionHandler(ApiException.class)
+    public ResponseEntity<Map<String, String>> handleApi(ApiException ex) {
+        return ResponseEntity.status(ex.getStatus())
+                .body(Map.of("code", ex.getCode(), "error", ex.getMessage()));
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, String>> handleIllegalArgument(IllegalArgumentException ex) {
         return ResponseEntity.badRequest().body(Map.of("error", ex.getMessage()));
