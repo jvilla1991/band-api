@@ -184,17 +184,21 @@ public class OrderController {
      * id out of the raw payload and re-fetching it directly.
      */
     private Session retrieveSessionFromRawPayload(String payload) {
+        String sessionId;
         try {
             JsonNode root = OBJECT_MAPPER.readTree(payload);
-            String sessionId = root.path("data").path("object").path("id").asText(null);
-            if (sessionId == null || sessionId.isBlank()) {
-                throw new IllegalStateException("Webhook payload is missing data.object.id");
-            }
-            return Session.retrieve(sessionId);
+            sessionId = root.path("data").path("object").path("id").asText(null);
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("Failed to parse webhook payload", e);
+        }
+        if (sessionId == null || sessionId.isBlank()) {
+            throw new IllegalStateException("Webhook payload is missing data.object.id");
+        }
+        try {
+            return Session.retrieve(sessionId);
         } catch (StripeException e) {
-            throw new IllegalStateException("Failed to retrieve checkout session " + payload, e);
+            // message carries only the session id — the raw payload holds customer PII
+            throw new IllegalStateException("Failed to retrieve checkout session " + sessionId, e);
         }
     }
 
