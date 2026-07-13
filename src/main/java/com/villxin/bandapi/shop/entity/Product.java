@@ -3,7 +3,6 @@ package com.villxin.bandapi.shop.entity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.PositiveOrZero;
 import java.math.BigDecimal;
 import java.time.Instant;
 
@@ -29,9 +28,10 @@ public class Product {
     @Column(name = "image_url")
     private String imageUrl;
 
-    @PositiveOrZero
-    @Column(name = "stock_quantity", nullable = false)
-    private int stockQuantity = 0;
+    // Printify is the source of truth for the catalog; null only for legacy
+    // rows that predate the Printify sync (see ProductSyncService).
+    @Column(name = "printify_product_id", unique = true, length = 64)
+    private String printifyProductId;
 
     @Column(nullable = false)
     private boolean active = true;
@@ -53,8 +53,8 @@ public class Product {
     public void setPrice(BigDecimal price) { this.price = price; }
     public String getImageUrl() { return imageUrl; }
     public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
-    public int getStockQuantity() { return stockQuantity; }
-    public void setStockQuantity(int stockQuantity) { this.stockQuantity = stockQuantity; }
+    public String getPrintifyProductId() { return printifyProductId; }
+    public void setPrintifyProductId(String printifyProductId) { this.printifyProductId = printifyProductId; }
     public boolean isActive() { return active; }
     public void setActive(boolean active) { this.active = active; }
     public Instant getCreatedAt() { return createdAt; }

@@ -16,7 +16,9 @@ public class Order {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "customer_email", nullable = false, length = 255)
+    // null until the webhook fills it in from the completed Stripe session —
+    // checkout no longer collects it up front (Stripe's hosted page does)
+    @Column(name = "customer_email", length = 255)
     private String customerEmail;
 
     @Enumerated(EnumType.STRING)
@@ -28,6 +30,11 @@ public class Order {
 
     @Column(name = "stripe_session_id", unique = true, length = 500)
     private String stripeSessionId;
+
+    // set once the fulfillment order is created in Printify (on hold — the
+    // owner still approves it from the Printify dashboard before it prints)
+    @Column(name = "printify_order_id", length = 64)
+    private String printifyOrderId;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -49,6 +56,8 @@ public class Order {
     public void setTotalAmount(BigDecimal totalAmount) { this.totalAmount = totalAmount; }
     public String getStripeSessionId() { return stripeSessionId; }
     public void setStripeSessionId(String stripeSessionId) { this.stripeSessionId = stripeSessionId; }
+    public String getPrintifyOrderId() { return printifyOrderId; }
+    public void setPrintifyOrderId(String printifyOrderId) { this.printifyOrderId = printifyOrderId; }
     public Instant getCreatedAt() { return createdAt; }
     public List<OrderItem> getItems() { return items; }
 }

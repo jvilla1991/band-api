@@ -19,6 +19,10 @@ public class OrderItem {
     @JoinColumn(name = "product_id", nullable = false)
     private Product product;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "variant_id")
+    private ProductVariant variant;
+
     @Column(nullable = false)
     private int quantity;
 
@@ -31,6 +35,8 @@ public class OrderItem {
     public void setOrder(Order order) { this.order = order; }
     public Product getProduct() { return product; }
     public void setProduct(Product product) { this.product = product; }
+    public ProductVariant getVariant() { return variant; }
+    public void setVariant(ProductVariant variant) { this.variant = variant; }
     public int getQuantity() { return quantity; }
     public void setQuantity(int quantity) { this.quantity = quantity; }
     public BigDecimal getUnitPrice() { return unitPrice; }
