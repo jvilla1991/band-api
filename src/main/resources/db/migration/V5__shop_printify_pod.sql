@@ -6,12 +6,15 @@ ALTER TABLE products
     ADD COLUMN printify_product_id VARCHAR(64) UNIQUE,
     DROP COLUMN stock_quantity;
 
--- one row per Printify variant (size/color combo) of a product
+-- one row per Printify variant (size/color combo) of a product; size/color come
+-- from Printify's structured option values (label keeps the raw combined title)
 CREATE TABLE product_variants (
     id                  BIGSERIAL PRIMARY KEY,
     product_id          BIGINT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
     printify_variant_id BIGINT NOT NULL,
     label               VARCHAR(100) NOT NULL,
+    size_label          VARCHAR(100),
+    color_label         VARCHAR(100),
     price               NUMERIC(10, 2) NOT NULL,
     position            INT NOT NULL DEFAULT 0,
     active              BOOLEAN NOT NULL DEFAULT TRUE,

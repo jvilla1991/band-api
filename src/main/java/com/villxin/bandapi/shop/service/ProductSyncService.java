@@ -63,6 +63,12 @@ public class ProductSyncService {
         return new SyncResult(synced, deactivated);
     }
 
+    /**
+     * A variant's resolved size/color option values plus their canonical indexes
+     * (the order Printify lists the option's values in, e.g. XS before S before M).
+     */
+    private record VariantDimensions(String size, int sizeIndex, String color, int colorIndex) {}
+
     /** Upserts one product and its variants; returns how many rows this transitioned to inactive. */
     private int syncProduct(PrintifyClient.PrintifyProduct remoteProduct) {
         int deactivated = 0;
@@ -71,9 +77,17 @@ public class ProductSyncService {
                 .orElseGet(Product::new);
         boolean wasActive = product.isActive();
 
+        Map<Long, VariantDimensions> dimensionsByVariantId = resolveDimensions(remoteProduct);
         List<PrintifyClient.PrintifyVariant> enabledVariants = remoteProduct.variants() == null
                 ? List.of()
-                : remoteProduct.variants().stream().filter(PrintifyClient.PrintifyVariant::enabled).toList();
+                : remoteProduct.variants().stream()
+                        .filter(PrintifyClient.PrintifyVariant::enabled)
+                        // canonical order: size first (XS…3XL per Printify's option order), then color
+                        .sorted(Comparator
+                                .comparingInt((PrintifyClient.PrintifyVariant v) ->
+                                        dimensionsByVariantId.get(v.id()).sizeIndex())
+                                .thenComparingInt(v -> dimensionsByVariantId.get(v.id()).colorIndex()))
+                        .toList();
 
         product.setPrintifyProductId(remoteProduct.id());
         product.setName(remoteProduct.title());
@@ -101,7 +115,10 @@ public class ProductSyncService {
                 variant.setProduct(product);
                 variant.setPrintifyVariantId(remoteVariant.id());
             }
+            VariantDimensions dims = dimensionsByVariantId.get(remoteVariant.id());
             variant.setLabel(remoteVariant.title());
+            variant.setSizeLabel(dims.size());
+            variant.setColorLabel(dims.color());
             variant.setPrice(centsToDollars(remoteVariant.price()));
             variant.setPosition(position++);
             variant.setActive(true);
@@ -120,6 +137,50 @@ public class ProductSyncService {
         }
 
         return deactivated;
+    }
+
+    /**
+     * Maps every variant id to its size/color option titles and their canonical
+     * indexes. Printify option value ids are unique within a product, so variants
+     * reference values by id alone — no positional assumptions needed. Dimensions
+     * other than size/color (shape, surface, …) stay in the combined label only.
+     */
+    private Map<Long, VariantDimensions> resolveDimensions(PrintifyClient.PrintifyProduct remoteProduct) {
+        record ValueRef(String type, String title, int index) {}
+        Map<Long, ValueRef> valuesById = new HashMap<>();
+        if (remoteProduct.options() != null) {
+            for (PrintifyClient.PrintifyOption option : remoteProduct.options()) {
+                if (option.values() == null) continue;
+                for (int i = 0; i < option.values().size(); i++) {
+                    PrintifyClient.PrintifyOptionValue value = option.values().get(i);
+                    valuesById.put(value.id(), new ValueRef(option.type(), value.title(), i));
+                }
+            }
+        }
+
+        Map<Long, VariantDimensions> result = new HashMap<>();
+        if (remoteProduct.variants() == null) return result;
+        for (PrintifyClient.PrintifyVariant variant : remoteProduct.variants()) {
+            String size = null;
+            String color = null;
+            int sizeIndex = Integer.MAX_VALUE;
+            int colorIndex = Integer.MAX_VALUE;
+            if (variant.options() != null) {
+                for (Long valueId : variant.options()) {
+                    ValueRef ref = valuesById.get(valueId);
+                    if (ref == null) continue;
+                    if ("size".equals(ref.type())) {
+                        size = ref.title();
+                        sizeIndex = ref.index();
+                    } else if ("color".equals(ref.type())) {
+                        color = ref.title();
+                        colorIndex = ref.index();
+                    }
+                }
+            }
+            result.put(variant.id(), new VariantDimensions(size, sizeIndex, color, colorIndex));
+        }
+        return result;
     }
 
     private String resolveImageUrl(List<PrintifyClient.PrintifyImage> images) {

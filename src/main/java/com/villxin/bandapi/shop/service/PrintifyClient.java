@@ -92,15 +92,30 @@ public class PrintifyClient {
             String title,
             String description,
             boolean visible,
+            List<PrintifyOption> options,
             List<PrintifyVariant> variants,
             List<PrintifyImage> images) {}
+
+    /** A product dimension (type "size", "color", "shape", …) with its values in canonical order. */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record PrintifyOption(
+            String name,
+            String type,
+            List<PrintifyOptionValue> values) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record PrintifyOptionValue(
+            long id,
+            String title) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record PrintifyVariant(
             long id,
             String title,
             int price, // cents
-            @JsonProperty("is_enabled") boolean enabled) {}
+            @JsonProperty("is_enabled") boolean enabled,
+            /** Option value ids, one per product dimension (matched by id, not index). */
+            List<Long> options) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record PrintifyImage(

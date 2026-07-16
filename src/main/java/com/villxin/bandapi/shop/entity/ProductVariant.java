@@ -25,6 +25,14 @@ public class ProductVariant {
     @Column(nullable = false, length = 100)
     private String label;
 
+    /** Size option title from Printify (e.g. "M", "2XL"); null when the product has no size dimension. */
+    @Column(name = "size_label", length = 100)
+    private String sizeLabel;
+
+    /** Color option title from Printify (e.g. "Solid Black"); null when the product has no color dimension. */
+    @Column(name = "color_label", length = 100)
+    private String colorLabel;
+
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal price;
 
@@ -41,6 +49,10 @@ public class ProductVariant {
     public void setPrintifyVariantId(Long printifyVariantId) { this.printifyVariantId = printifyVariantId; }
     public String getLabel() { return label; }
     public void setLabel(String label) { this.label = label; }
+    public String getSizeLabel() { return sizeLabel; }
+    public void setSizeLabel(String sizeLabel) { this.sizeLabel = sizeLabel; }
+    public String getColorLabel() { return colorLabel; }
+    public void setColorLabel(String colorLabel) { this.colorLabel = colorLabel; }
     public BigDecimal getPrice() { return price; }
     public void setPrice(BigDecimal price) { this.price = price; }
     public int getPosition() { return position; }

@@ -43,13 +43,23 @@ class ProductSyncServiceTest {
     }
 
     @Test
-    void createsNewProductWithEnabledVariantsOnlyInArrayOrder() {
+    void createsNewProductWithEnabledVariantsSortedBySizeThenColorWithDimensionLabels() {
+        var sizeOption = new PrintifyClient.PrintifyOption("Sizes", "size", List.of(
+                new PrintifyClient.PrintifyOptionValue(1L, "S"),
+                new PrintifyClient.PrintifyOptionValue(2L, "M"),
+                new PrintifyClient.PrintifyOptionValue(3L, "XL")));
+        var colorOption = new PrintifyClient.PrintifyOption("Colors", "color", List.of(
+                new PrintifyClient.PrintifyOptionValue(10L, "White"),
+                new PrintifyClient.PrintifyOptionValue(11L, "Black")));
         var printifyProduct = new PrintifyClient.PrintifyProduct(
                 "pp1", "Ashfall Tee", "<p>desc</p>", true,
+                List.of(sizeOption, colorOption),
                 List.of(
-                        new PrintifyClient.PrintifyVariant(11L, "S", 2800, true),
-                        new PrintifyClient.PrintifyVariant(12L, "M", 2800, true),
-                        new PrintifyClient.PrintifyVariant(13L, "XL", 3200, false)), // disabled — skipped
+                        // deliberately out of order: Printify's variant array is not canonical
+                        new PrintifyClient.PrintifyVariant(12L, "Black / M", 2800, true, List.of(2L, 11L)),
+                        new PrintifyClient.PrintifyVariant(11L, "White / S", 2800, true, List.of(1L, 10L)),
+                        new PrintifyClient.PrintifyVariant(14L, "White / M", 2800, true, List.of(2L, 10L)),
+                        new PrintifyClient.PrintifyVariant(13L, "White / XL", 3200, false, List.of(3L, 10L))), // disabled
                 List.of(
                         new PrintifyClient.PrintifyImage("https://example.com/back.png", false),
                         new PrintifyClient.PrintifyImage("https://example.com/front.png", true)));
@@ -73,13 +83,21 @@ class ProductSyncServiceTest {
         assertTrue(saved.isActive());
 
         ArgumentCaptor<ProductVariant> variantCaptor = ArgumentCaptor.forClass(ProductVariant.class);
-        verify(variantRepository, times(2)).save(variantCaptor.capture());
+        verify(variantRepository, times(3)).save(variantCaptor.capture());
         List<ProductVariant> savedVariants = variantCaptor.getAllValues();
-        assertEquals(2, savedVariants.size()); // the disabled XL variant never gets created
-        assertEquals("S", savedVariants.get(0).getLabel());
+        assertEquals(3, savedVariants.size()); // the disabled XL variant never gets created
+
+        // canonical order: S before M (size option order), White before Black within M
+        assertEquals("White / S", savedVariants.get(0).getLabel());
+        assertEquals("S", savedVariants.get(0).getSizeLabel());
+        assertEquals("White", savedVariants.get(0).getColorLabel());
         assertEquals(0, savedVariants.get(0).getPosition());
-        assertEquals("M", savedVariants.get(1).getLabel());
+        assertEquals("White / M", savedVariants.get(1).getLabel());
         assertEquals(1, savedVariants.get(1).getPosition());
+        assertEquals("Black / M", savedVariants.get(2).getLabel());
+        assertEquals("M", savedVariants.get(2).getSizeLabel());
+        assertEquals("Black", savedVariants.get(2).getColorLabel());
+        assertEquals(2, savedVariants.get(2).getPosition());
     }
 
     @Test
@@ -97,6 +115,7 @@ class ProductSyncServiceTest {
 
         var printifyProduct = new PrintifyClient.PrintifyProduct(
                 "pp1", "Ashfall Tee", "desc", false, // no longer visible
+                List.of(),
                 List.of(), // no enabled variants this time
                 List.of());
         when(printifyClient.listProducts()).thenReturn(List.of(printifyProduct));

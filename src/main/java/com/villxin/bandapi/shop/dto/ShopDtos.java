@@ -14,9 +14,9 @@ public final class ShopDtos {
 
     private ShopDtos() {}
 
-    public record VariantDto(Long id, String label, BigDecimal price) {
+    public record VariantDto(Long id, String label, String size, String color, BigDecimal price) {
         public static VariantDto from(ProductVariant v) {
-            return new VariantDto(v.getId(), v.getLabel(), v.getPrice());
+            return new VariantDto(v.getId(), v.getLabel(), v.getSizeLabel(), v.getColorLabel(), v.getPrice());
         }
     }
 
