@@ -57,6 +57,22 @@ public class PrintifyClient {
     }
 
     /**
+     * What Printify will charge us to ship these line items, in cents (their
+     * "standard" rate). US rates depend on the items and quantities, not the
+     * destination — verified identical for TX/NY/CA/AK/HI/PR — so a quote taken
+     * with any US address holds for whatever address the buyer enters later.
+     */
+    public Integer calculateShippingCents(List<LineItem> lineItems, AddressTo addressTo) {
+        ShippingRequest body = new ShippingRequest(lineItems, addressTo);
+        ShippingResponse response = restClient.post()
+                .uri("/shops/{shopId}/orders/shipping.json", shopId)
+                .body(body)
+                .retrieve()
+                .body(ShippingResponse.class);
+        return response != null ? response.standard() : null;
+    }
+
+    /**
      * Creates an order in Printify, on hold for the owner's approval. Returns
      * the Printify order id to store alongside our own order.
      */
@@ -140,6 +156,13 @@ public class PrintifyClient {
             String address2,
             String city,
             String zip) {}
+
+    private record ShippingRequest(
+            @JsonProperty("line_items") List<LineItem> lineItems,
+            @JsonProperty("address_to") AddressTo addressTo) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record ShippingResponse(Integer standard, Integer express) {}
 
     private record CreateOrderRequest(
             @JsonProperty("external_id") String externalId,

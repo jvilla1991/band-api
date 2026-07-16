@@ -20,6 +20,7 @@ import com.villxin.bandapi.shop.entity.ProductVariant;
 import com.villxin.bandapi.shop.repository.OrderRepository;
 import com.villxin.bandapi.shop.repository.ProductVariantRepository;
 import com.villxin.bandapi.shop.service.PrintifyClient;
+import com.villxin.bandapi.shop.service.ShippingQuoteService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotEmpty;
@@ -47,28 +48,28 @@ public class OrderController {
     private final OrderRepository orderRepository;
     private final ProductVariantRepository variantRepository;
     private final PrintifyClient printifyClient;
+    private final ShippingQuoteService shippingQuoteService;
     private final String webhookSecret;
     private final String successUrl;
     private final String cancelUrl;
-    private final long shippingFlatCents;
     private final List<SessionCreateParams.ShippingAddressCollection.AllowedCountry> allowedCountries;
 
     public OrderController(OrderRepository orderRepository,
                            ProductVariantRepository variantRepository,
                            PrintifyClient printifyClient,
+                           ShippingQuoteService shippingQuoteService,
                            @Value("${stripe.secret-key}") String stripeSecretKey,
                            @Value("${stripe.webhook-secret}") String webhookSecret,
                            @Value("${stripe.success-url}") String successUrl,
                            @Value("${stripe.cancel-url}") String cancelUrl,
-                           @Value("${shop.shipping-flat-cents}") long shippingFlatCents,
                            @Value("${shop.allowed-countries}") String allowedCountriesRaw) {
         this.orderRepository = orderRepository;
         this.variantRepository = variantRepository;
         this.printifyClient = printifyClient;
+        this.shippingQuoteService = shippingQuoteService;
         this.webhookSecret = webhookSecret;
         this.successUrl = successUrl;
         this.cancelUrl = cancelUrl;
-        this.shippingFlatCents = shippingFlatCents;
         this.allowedCountries = Arrays.stream(allowedCountriesRaw.split(","))
                 .map(String::trim)
                 .filter(s -> !s.isEmpty())
@@ -129,12 +130,16 @@ public class OrderController {
                 SessionCreateParams.ShippingAddressCollection.builder();
         allowedCountries.forEach(shippingAddressCollection::addAllowedCountry);
 
+        // Printify's real rate for this exact cart — scales with items/quantity, and
+        // keeps high-shipping products from selling at a loss.
+        long shippingCents = shippingQuoteService.quoteCents(orderItems);
+
         SessionCreateParams.ShippingOption shippingOption = SessionCreateParams.ShippingOption.builder()
                 .setShippingRateData(SessionCreateParams.ShippingOption.ShippingRateData.builder()
                         .setType(SessionCreateParams.ShippingOption.ShippingRateData.Type.FIXED_AMOUNT)
                         .setDisplayName("Standard · 7–10 days production + transit")
                         .setFixedAmount(SessionCreateParams.ShippingOption.ShippingRateData.FixedAmount.builder()
-                                .setAmount(shippingFlatCents)
+                                .setAmount(shippingCents)
                                 .setCurrency("usd")
                                 .build())
                         .build())

@@ -11,6 +11,7 @@ import com.villxin.bandapi.shop.entity.ProductVariant;
 import com.villxin.bandapi.shop.repository.OrderRepository;
 import com.villxin.bandapi.shop.repository.ProductVariantRepository;
 import com.villxin.bandapi.shop.service.PrintifyClient;
+import com.villxin.bandapi.shop.service.ShippingQuoteService;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
@@ -49,12 +50,13 @@ class OrderControllerTest {
     private final OrderRepository orderRepository = mock(OrderRepository.class);
     private final ProductVariantRepository variantRepository = mock(ProductVariantRepository.class);
     private final PrintifyClient printifyClient = mock(PrintifyClient.class);
+    private final ShippingQuoteService shippingQuoteService = mock(ShippingQuoteService.class);
 
     private final OrderController controller = new OrderController(
-            orderRepository, variantRepository, printifyClient,
+            orderRepository, variantRepository, printifyClient, shippingQuoteService,
             "sk_test_dummy", "whsec_dummy",
             "http://localhost:5173/#/store/success", "http://localhost:5173/#/store",
-            599L, "US");
+            "US");
 
     // --- checkout validation ---
 
