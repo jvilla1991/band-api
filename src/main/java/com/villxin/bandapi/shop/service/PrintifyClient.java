@@ -29,6 +29,9 @@ public class PrintifyClient {
         this.restClient = RestClient.builder()
                 .baseUrl(BASE_URL)
                 .defaultHeader("Authorization", "Bearer " + apiToken)
+                // Printify sits behind Cloudflare, which 403s (error 1010) generic
+                // language-default user agents — identify ourselves explicitly.
+                .defaultHeader("User-Agent", "villxin-band-api/1.0")
                 .build();
     }
 
