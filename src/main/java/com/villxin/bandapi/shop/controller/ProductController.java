@@ -1,57 +1,48 @@
 package com.villxin.bandapi.shop.controller;
 
+import com.villxin.bandapi.shop.dto.ShopDtos.ProductDto;
+import com.villxin.bandapi.shop.dto.ShopDtos.VariantDto;
 import com.villxin.bandapi.shop.entity.Product;
 import com.villxin.bandapi.shop.repository.ProductRepository;
-import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.PositiveOrZero;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
+import com.villxin.bandapi.shop.repository.ProductVariantRepository;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.math.BigDecimal;
+import java.util.List;
 import java.util.Map;
 
+/**
+ * Read-only product catalog + admin deactivate. The catalog itself (name,
+ * description, price, images, variants) is owned by Printify and populated
+ * by {@code ProductSyncService} — there is no create/update here anymore.
+ */
 @RestController
 @RequestMapping("/api/shop/products")
 public class ProductController {
 
     private final ProductRepository productRepository;
+    private final ProductVariantRepository variantRepository;
 
-    public ProductController(ProductRepository productRepository) {
+    public ProductController(ProductRepository productRepository,
+                             ProductVariantRepository variantRepository) {
         this.productRepository = productRepository;
+        this.variantRepository = variantRepository;
     }
 
     @GetMapping
-    public Page<Product> list(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
-        return productRepository.findByActiveTrue(PageRequest.of(page, Math.min(size, 50)));
+    public List<ProductDto> list() {
+        return productRepository.findByActiveTrueOrderByIdAsc().stream()
+                .map(this::toDto)
+                .toList();
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Product> get(@PathVariable Long id) {
+    public ResponseEntity<ProductDto> get(@PathVariable Long id) {
         return productRepository.findById(id)
+                .filter(Product::isActive)
+                .map(this::toDto)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
-    }
-
-    @PostMapping
-    public ResponseEntity<Product> create(@Valid @RequestBody ProductRequest request) {
-        Product product = new Product();
-        apply(product, request);
-        return ResponseEntity.ok(productRepository.save(product));
-    }
-
-    @PutMapping("/{id}")
-    public ResponseEntity<Product> update(@PathVariable Long id,
-                                          @Valid @RequestBody ProductRequest request) {
-        return productRepository.findById(id).map(product -> {
-            apply(product, request);
-            return ResponseEntity.ok(productRepository.save(product));
-        }).orElse(ResponseEntity.notFound().build());
     }
 
     @DeleteMapping("/{id}")
@@ -63,19 +54,10 @@ public class ProductController {
         }).orElse(ResponseEntity.notFound().build());
     }
 
-    private void apply(Product product, ProductRequest request) {
-        product.setName(request.name());
-        product.setDescription(request.description());
-        product.setPrice(request.price());
-        product.setImageUrl(request.imageUrl());
-        product.setStockQuantity(request.stockQuantity());
+    private ProductDto toDto(Product product) {
+        List<VariantDto> variants = variantRepository
+                .findByProductIdAndActiveTrueOrderByPositionAsc(product.getId())
+                .stream().map(VariantDto::from).toList();
+        return ProductDto.from(product, variants);
     }
-
-    record ProductRequest(
-        @NotBlank String name,
-        String description,
-        @NotNull BigDecimal price,
-        String imageUrl,
-        @PositiveOrZero int stockQuantity
-    ) {}
 }

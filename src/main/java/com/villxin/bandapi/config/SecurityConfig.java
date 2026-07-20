@@ -43,6 +43,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/shop/checkout").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/shop/webhook").permitAll()
                         .requestMatchers("/api/shop/products/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/shop/sync").hasRole("ADMIN")
                         // YourArea community — magic-link auth is public
                         .requestMatchers(HttpMethod.POST,
                                 "/api/community/auth/signup",
