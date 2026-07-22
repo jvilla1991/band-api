@@ -44,6 +44,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/shop/webhook").permitAll()
                         .requestMatchers("/api/shop/products/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/shop/sync").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/shop/release-locks").hasRole("ADMIN")
                         // Site controls: admin subtree first — it must win over the
                         // public GET matcher below, which would otherwise also match it.
                         .requestMatchers("/api/site/admin/**").hasRole("ADMIN")
