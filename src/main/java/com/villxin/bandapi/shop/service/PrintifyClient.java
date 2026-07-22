@@ -94,6 +94,23 @@ public class PrintifyClient {
         return response != null ? response.id() : null;
     }
 
+    /**
+     * Completes the publish handshake for a product, which is what releases
+     * Printify's edit/delete lock. Our shop is a "custom integration", so
+     * pressing Publish in the Printify dashboard locks the product until an
+     * integration reports back — and nothing here subscribes to publish events,
+     * so without this call the lock never lifts. The catalog reaches the site
+     * through {@link ProductSyncService} regardless of publish state; this just
+     * tells Printify the listing exists so it stops waiting.
+     */
+    public void markPublishingSucceeded(String productId, String storeUrl) {
+        restClient.post()
+                .uri("/shops/{shopId}/products/{productId}/publishing_succeeded.json", shopId, productId)
+                .body(new PublishingSucceeded(new ExternalListing(productId, storeUrl)))
+                .retrieve()
+                .toBodilessEntity();
+    }
+
     // --- catalog DTOs (Printify -> us) ---
 
     @JsonIgnoreProperties(ignoreUnknown = true)
@@ -108,6 +125,8 @@ public class PrintifyClient {
             String title,
             String description,
             boolean visible,
+            /** True while Printify awaits a publish handshake — the product can't be edited or deleted. */
+            @JsonProperty("is_locked") boolean locked,
             List<PrintifyOption> options,
             List<PrintifyVariant> variants,
             List<PrintifyImage> images) {}
@@ -174,4 +193,11 @@ public class PrintifyClient {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     private record PrintifyOrderResponse(String id) {}
+
+    // --- publish handshake DTOs (us -> Printify) ---
+
+    private record PublishingSucceeded(ExternalListing external) {}
+
+    /** Where the listing "lives" as far as Printify is concerned. */
+    private record ExternalListing(String id, String handle) {}
 }

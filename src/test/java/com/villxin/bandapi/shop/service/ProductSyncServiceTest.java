@@ -52,7 +52,7 @@ class ProductSyncServiceTest {
                 new PrintifyClient.PrintifyOptionValue(10L, "White"),
                 new PrintifyClient.PrintifyOptionValue(11L, "Black")));
         var printifyProduct = new PrintifyClient.PrintifyProduct(
-                "pp1", "Ashfall Tee", "<p>desc</p>", true,
+                "pp1", "Ashfall Tee", "<p>desc</p>", true, false,
                 List.of(sizeOption, colorOption),
                 List.of(
                         // deliberately out of order: Printify's variant array is not canonical
@@ -114,7 +114,7 @@ class ProductSyncServiceTest {
         staleVariant.setActive(true);
 
         var printifyProduct = new PrintifyClient.PrintifyProduct(
-                "pp1", "Ashfall Tee", "desc", false, // no longer visible
+                "pp1", "Ashfall Tee", "desc", false, false, // no longer visible
                 List.of(),
                 List.of(), // no enabled variants this time
                 List.of());
