@@ -47,18 +47,30 @@ public class DataSeeder implements ApplicationRunner {
             return;
         }
 
-        if (userRepository.existsByEmail(adminEmail)) {
+        String email = adminEmail.toLowerCase().trim();
+        if (userRepository.existsByEmail(email)) {
             log.info("Admin user already exists — skipping seed");
             return;
         }
 
+        // ADMIN_EMAIL is authoritative: if the admin was seeded under a previous
+        // address, rename it (keeps the same password and any owned rows) rather
+        // than piling up a second admin account.
+        User existingAdmin = userRepository.findFirstByRole("ADMIN").orElse(null);
+        if (existingAdmin != null) {
+            log.info("Admin email changed — renaming {} to {}", existingAdmin.getEmail(), email);
+            existingAdmin.setEmail(email);
+            userRepository.save(existingAdmin);
+            return;
+        }
+
         User admin = new User();
-        admin.setEmail(adminEmail);
+        admin.setEmail(email);
         admin.setPassword(passwordEncoder.encode(adminPassword));
         admin.setRole("ADMIN");
         userRepository.save(admin);
 
-        log.info("Admin user seeded: {}", adminEmail);
+        log.info("Admin user seeded: {}", email);
     }
 
     /**
