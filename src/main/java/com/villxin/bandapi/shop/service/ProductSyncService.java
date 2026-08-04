@@ -1,7 +1,9 @@
 package com.villxin.bandapi.shop.service;
 
 import com.villxin.bandapi.shop.entity.Product;
+import com.villxin.bandapi.shop.entity.ProductImage;
 import com.villxin.bandapi.shop.entity.ProductVariant;
+import com.villxin.bandapi.shop.repository.ProductImageRepository;
 import com.villxin.bandapi.shop.repository.ProductRepository;
 import com.villxin.bandapi.shop.repository.ProductVariantRepository;
 import org.springframework.stereotype.Service;
@@ -27,13 +29,16 @@ public class ProductSyncService {
     private final PrintifyClient printifyClient;
     private final ProductRepository productRepository;
     private final ProductVariantRepository variantRepository;
+    private final ProductImageRepository imageRepository;
 
     public ProductSyncService(PrintifyClient printifyClient,
                               ProductRepository productRepository,
-                              ProductVariantRepository variantRepository) {
+                              ProductVariantRepository variantRepository,
+                              ProductImageRepository imageRepository) {
         this.printifyClient = printifyClient;
         this.productRepository = productRepository;
         this.variantRepository = variantRepository;
+        this.imageRepository = imageRepository;
     }
 
     @Transactional
@@ -89,13 +94,20 @@ public class ProductSyncService {
                                 .thenComparingInt(v -> dimensionsByVariantId.get(v.id()).colorIndex()))
                         .toList();
 
+        Set<Long> enabledVariantIds = new HashSet<>();
+        for (PrintifyClient.PrintifyVariant variant : enabledVariants) {
+            enabledVariantIds.add(variant.id());
+        }
+
         product.setPrintifyProductId(remoteProduct.id());
         product.setName(remoteProduct.title());
         product.setDescription(remoteProduct.description());
-        product.setImageUrl(resolveImageUrl(remoteProduct.images()));
+        product.setImageUrl(resolveImageUrl(remoteProduct.images(), enabledVariantIds));
         product.setPrice(minPrice(enabledVariants));
         product.setActive(remoteProduct.visible());
         product = productRepository.save(product);
+
+        syncImages(product, remoteProduct.images(), enabledVariantIds);
 
         if (wasActive && !product.isActive()) {
             deactivated++;
@@ -183,8 +195,56 @@ public class ProductSyncService {
         return result;
     }
 
-    private String resolveImageUrl(List<PrintifyClient.PrintifyImage> images) {
+    /**
+     * Replaces the product's mockup gallery with Printify's current one.
+     * Mockups whose variant ids all point at disabled variants are skipped —
+     * they depict a color that isn't for sale (e.g. a white shirt after white
+     * was turned off), so they must never reach the storefront.
+     */
+    private void syncImages(Product product,
+                            List<PrintifyClient.PrintifyImage> images,
+                            Set<Long> enabledVariantIds) {
+        imageRepository.deleteByProductId(product.getId());
+        if (images == null) return;
+        int position = 0;
+        for (PrintifyClient.PrintifyImage remoteImage : images) {
+            if (!depictsAnyEnabledVariant(remoteImage, enabledVariantIds)) continue;
+            ProductImage image = new ProductImage();
+            image.setProduct(product);
+            image.setSrc(remoteImage.src());
+            image.setDefault(remoteImage.isDefault());
+            image.setPosition(position++);
+            image.setVariantIds(remoteImage.variantIds() == null
+                    ? List.of()
+                    : List.copyOf(remoteImage.variantIds()));
+            imageRepository.save(image);
+        }
+    }
+
+    /** Untagged mockups (no variant ids) are treated as generic and kept. */
+    private boolean depictsAnyEnabledVariant(PrintifyClient.PrintifyImage image, Set<Long> enabledVariantIds) {
+        if (image.variantIds() == null || image.variantIds().isEmpty()) return true;
+        for (Long variantId : image.variantIds()) {
+            if (enabledVariantIds.contains(variantId)) return true;
+        }
+        return false;
+    }
+
+    /**
+     * The single "card" image, also sent to Stripe as the checkout line-item
+     * picture — so it must depict a variant that is actually for sale. Prefer
+     * the default mockup of an enabled variant, then any enabled-variant
+     * mockup, then fall back to Printify's default regardless.
+     */
+    private String resolveImageUrl(List<PrintifyClient.PrintifyImage> images, Set<Long> enabledVariantIds) {
         if (images == null || images.isEmpty()) return null;
+        PrintifyClient.PrintifyImage firstEnabled = null;
+        for (PrintifyClient.PrintifyImage image : images) {
+            if (!depictsAnyEnabledVariant(image, enabledVariantIds)) continue;
+            if (image.isDefault()) return image.src();
+            if (firstEnabled == null) firstEnabled = image;
+        }
+        if (firstEnabled != null) return firstEnabled.src();
         return images.stream()
                 .filter(PrintifyClient.PrintifyImage::isDefault)
                 .map(PrintifyClient.PrintifyImage::src)

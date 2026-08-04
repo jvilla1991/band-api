@@ -155,6 +155,10 @@ public class PrintifyClient {
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record PrintifyImage(
             String src,
+            /** Variant ids this mockup depicts — Printify renders one mockup set per color group. */
+            @JsonProperty("variant_ids") List<Long> variantIds,
+            /** Camera side as a string ("front"/"back"/"other") — display order is the array order. */
+            String position,
             @JsonProperty("is_default") boolean isDefault) {}
 
     // --- order-creation DTOs (us -> Printify) ---
