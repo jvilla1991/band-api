@@ -1,8 +1,10 @@
 package com.villxin.bandapi.shop.controller;
 
 import com.villxin.bandapi.shop.dto.ShopDtos.ProductDto;
+import com.villxin.bandapi.shop.dto.ShopDtos.ProductImageDto;
 import com.villxin.bandapi.shop.dto.ShopDtos.VariantDto;
 import com.villxin.bandapi.shop.entity.Product;
+import com.villxin.bandapi.shop.repository.ProductImageRepository;
 import com.villxin.bandapi.shop.repository.ProductRepository;
 import com.villxin.bandapi.shop.repository.ProductVariantRepository;
 import org.springframework.http.ResponseEntity;
@@ -22,11 +24,14 @@ public class ProductController {
 
     private final ProductRepository productRepository;
     private final ProductVariantRepository variantRepository;
+    private final ProductImageRepository imageRepository;
 
     public ProductController(ProductRepository productRepository,
-                             ProductVariantRepository variantRepository) {
+                             ProductVariantRepository variantRepository,
+                             ProductImageRepository imageRepository) {
         this.productRepository = productRepository;
         this.variantRepository = variantRepository;
+        this.imageRepository = imageRepository;
     }
 
     @GetMapping
@@ -55,9 +60,12 @@ public class ProductController {
     }
 
     private ProductDto toDto(Product product) {
+        List<ProductImageDto> images = imageRepository
+                .findByProductIdOrderByPositionAsc(product.getId())
+                .stream().map(ProductImageDto::from).toList();
         List<VariantDto> variants = variantRepository
                 .findByProductIdAndActiveTrueOrderByPositionAsc(product.getId())
                 .stream().map(VariantDto::from).toList();
-        return ProductDto.from(product, variants);
+        return ProductDto.from(product, images, variants);
     }
 }
