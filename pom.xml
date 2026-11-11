@@ -19,6 +19,12 @@
 
     <properties>
         <java.version>21</java.version>
+        <!-- Override the Spring Boot BOM's Testcontainers (1.19.x). That line ships
+             docker-java 3.3.x, which negotiates Docker API 1.32 — and GitHub's
+             ubuntu-latest runner now rejects anything below 1.40, erroring every
+             Testcontainers-backed test. 1.21.x bundles docker-java 3.4.x (API >= 1.40).
+             Test scope only — not in the runtime image. -->
+        <testcontainers.version>1.21.4</testcontainers.version>
     </properties>
 
     <dependencies>
