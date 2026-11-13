@@ -147,6 +147,10 @@ if (auth != null && auth.isAuthenticated()) {
 | `STRIPE_WEBHOOK_SECRET` | Yes | Stripe webhook signing secret |
 | `STRIPE_SUCCESS_URL` | Yes | Redirect URL after successful payment |
 | `STRIPE_CANCEL_URL` | Yes | Redirect URL on cancelled payment |
+| `MAILCHIMP_API_KEY` | No | Mailchimp Marketing API key (ends in the server prefix, e.g. `-us5`). Sync is off when unset. Keys expire after 1 year. |
+| `MAILCHIMP_AUDIENCE_ID` | No | Mailchimp audience (list) id. Sync is off when unset. |
+| `SIGNUP_LIMIT_PER_CLIENT` | No | Signups per IP per 10 minutes (default 5) |
+| `SIGNUP_LIMIT_GLOBAL` | No | Site-wide signups per hour (default 60) |
 
 ---
 
@@ -161,7 +165,17 @@ if (auth != null && auth.isAuthenticated()) {
 ### Mailing List
 | Method | Path | Auth | Description |
 |---|---|---|---|
-| POST | `/api/subscribe` | Public | Subscribe an email address |
+| POST | `/api/subscribe` | Public | Subscribe an email address (saved, then pushed to Mailchimp) |
+| GET | `/api/mailing-list/admin/status` | Admin | Mailchimp on/off + subscriber counts per sync state |
+| POST | `/api/mailing-list/admin/sync` | Admin | Retry PENDING rows; `?includeLegacy=true` also imports pre-Mailchimp subscribers (tag `legacy-first-release`) |
+
+Postgres is the source of truth; Mailchimp is where campaigns are sent from. Signups are
+**single opt-in**. A new signup is pushed to Mailchimp inline (2s connect / 3s read timeout);
+if that fails, the signup still succeeds and the row stays `PENDING` until the admin sync.
+The client only ever sends `status_if_new`, never `status`, so an address that unsubscribed
+in Mailchimp is never re-subscribed by a retry, a re-signup, or the legacy import.
+Sync states: `PENDING`, `LEGACY` (held until the import), `SYNCED`, `REJECTED` (Mailchimp
+refused the address — not retried).
 
 ### Messageboards
 | Method | Path | Auth | Description |
@@ -281,4 +295,7 @@ revoker can reopen (re-accept).
 ### Mailing list response shape (updated)
 `POST /api/subscribe` `{"email"}` → `{"ok":true,"message":"Subscribed!"}`;
 duplicate → 409 `{"ok":false,"code":"duplicate","message":"Already subscribed"}`;
-invalid → 400 `{"ok":false,"code":"invalid","message":"Invalid email address"}`.
+invalid → 400 `{"ok":false,"code":"invalid","message":"Invalid email address"}`;
+rate limited → 429 `{"ok":false,"code":"rate_limited","message":"..."}`.
+The body may also carry `website` — a honeypot the real form always sends empty. A
+non-empty value gets the normal success response and is silently dropped.
